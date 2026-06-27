@@ -1,0 +1,296 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "142c7b76-5b35-41fc-9272-6d01a15a7726",
+              "name": "current_time",
+              "value": "={{ $now.plus(2,'hours').setZone('ASIA/KOLKATA') }}",
+              "type": "string"
+            },
+            {
+              "id": "e7f9199c-3b3e-4650-ae71-f0ce260c43d1",
+              "name": "length_check_availibility",
+              "value": "={{ $now.plus(7,'DAYS').setZone('ASIA/KOLKATA') }}",
+              "type": "string"
+            },
+            {
+              "id": "c0667ebf-141f-4af3-b8e0-255f0a4931c0",
+              "name": "event_type_id",
+              "value": "6137684",
+              "type": "string"
+            },
+            {
+              "id": "b1da0579-59a5-4e06-babf-c1cc64756435",
+              "name": "timezone",
+              "value": "ASIA/KOLKATA",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        192,
+        0
+      ],
+      "id": "0be166b9-a9dd-4919-a8d4-5bb5717453b1",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "url": "https://api.cal.com/v2/slots",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "eventTypeId",
+              "value": "={{ $json.event_type_id }}"
+            },
+            {
+              "name": "start",
+              "value": "={{ $json.current_time }}"
+            },
+            {
+              "name": "end",
+              "value": "={{ $json.length_check_availibility }}"
+            },
+            {
+              "name": "timeZone",
+              "value": "={{ $json.timezone }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "cal-api-version",
+              "value": "2024-09-04"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "df9c79c4-5973-4f7a-a5e1-eba3b4cb3ab7",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "E10EVYFcOVPwPze1",
+          "name": "calcom account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        624,
+        176
+      ],
+      "id": "00debed2-13bd-460f-93ee-6117aecc9a06",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "bzeuqrjFE1FkejdO",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=<appointment_data>\nToday is {{ $now.weekdayLong }} {{ $now.monthLong }} {{ $now.day }} {{ $now.year }} ({ $now. setZone( 'Asia/kolkata')}} \nThese are the current available dates:\n{{ JSON.stringify( $json.data) }} </appointment_data>  \n<instructions> Transform the JSON appointment data above into natural, conversational speech suitable for voice AI delivery. Follow these specific rules:  <grouping_rules>\n1. Group consecutive 30-minute time slots into ranges using \"between [start] and [end]\"\n2. The end time should be the last slot time in a consecutive group (not 30 minutes after) \n3. Any gap breaks the consecutive sequence - create a new range or isolated slot\n4. Isolated single slots use \"at [time]\" format \n5. Multiple isolated slots use \"at [time1] or [time2]\" format </grouping_rules>\n\n<formatting_rules> \n1. Format each date as: [Day name] [Month] [Date with ordinal] 2. Convert 24-hour time to 12-hour format with am/pm (no periods in am/pm) \n3. Use \"ten am\" not \"10:00 am\", \"one-thirty pm\" not \"1:30 pm\" 4. Omit \"zero\" minutes: \"three pm\" not \"three-zero-zero pm\" \n5. When a day has multiple time ranges, connect them with \", and also\"\n6. End each day's availability with a period before moving to",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        624,
+        0
+      ],
+      "id": "e6442bb2-4c20-4ea9-ab12-f88a4bc75917",
+      "name": "Transform full Avalibility"
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        944,
+        176
+      ],
+      "id": "f4fef360-fb4e-4a40-b5f0-cea3ff07ff17",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "bzeuqrjFE1FkejdO",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=#Objective Your task is to transform the provided set of available appointment slots into human-spoken form. You should provide only 2 times in different times of day or in different days (depending on the available slots provided). \n\nYour output should fit the sentence: \"We have availability on <date time 1 and date time 2>. When works for you?\" Your output should ONLY replace <date time 1 and date time 2>\" \n\n\n#Examples \nExample input 1: {\"2025-05-07\":[{\"start\":\"2025-05-07T09:00:00.000-04:00\"}, {\"start\":\"2025-05-07T09:30:00.000-04:00\"}, {\"start\":\"2025-05- 07T10:00:00.000-04:00\"}], \"2025-05-08\":[{\"start\":\"2025-05- 08T09:30:00.000-04:00\"}, {\"start\":\"2025-05-08T15:30:00.000-04:00\"}]}\n\nOutput 1:\nJwednesday at nine am Eastern and Thursday at nine-thirty am \nExample input 2: {\"2025-05-30\":[{\"start\":\"2025-05-30T15:30:00.000- 04:00\"}], \"2025-06-03\":[{\"start\":\"2025-06-03T09:30:00.000- 04:00\"}, {\"start\":\"2025-06-03T15:30:00.000-04:00\"},]} \n\nOutput 2: Friday at three-thirty pm Eastern and Tuesday at nine-thirty am  \nExample input 3: {\"2025-04-30\":[{\"start\":\"2025-04-30T15:00:00.000-04:00\"}, {\"start\":\"2025-04-30T15:30:00.000-04:00\"}], \"2025-05-01\": [{\"start\":\"2025-05-01T09:30:00.000-04:00\"}]}\n Output 3: Wednesday at three pm Eastern and Thursday at nine-thirty am \n\nExample input 4: {\"2025-05-20\":[{\"start\":\"2025-05-20T10:00:00.000-04:00\"}, {\"start\":\"2025-05-20T15:30:00.000-04:00\"}], \"2025-05-21\": [{\"start\":\"2025-05-21T09:30:00.000-04:00\"}]} \nOutput 4: Tuesday at ten am Eastern and three-thirty pm  \n\nExample input 5: {\"2025-05-20\":[{\"start\":\"2025-05-20T09:00:00.000- 04:00\"}], \"2025-05-28\":[{\"start\":\"2025-05-28T11:30:00.000- 04:00\"},{\"start\":\"2025-05-28T12:00:00.000-04:00\"}, {\"start\":\"2025-05-28T13:30:00.000-04:00\"}, {\"start\":\"2025-05- 28T14:00:00.000-04:00\"},{\"start\":\"2025-05-28T14:30:00.000- 04:00\"}, {\"start\":\"2025-05-28T15:00:00.000-04:00\"}, {\"start\":\"2025-05-28T16:30:00.000-04:00\"}]} \nOutput 5: Tuesday the twentieth at nine am Eastern and the following Wednesday the twenty-eighth at eleven-thirty am \n\n#Start\nToday is {{ $now.weekdayLong }} {{ $now.monthLong }} {{ $now.day }} {{ $now.setZone('Asia/kolkata') }}\nThese are the current available dates:\n{{ JSON.stringify( $('HTTP Request').item. json.data) }}\n\n\n",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        944,
+        0
+      ],
+      "id": "3a5556aa-a5b1-43c7-97c0-b5eb4daa11d4",
+      "name": "soonest avalibility"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inbound-call-dynamic-variables-masterclass",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -32,
+        0
+      ],
+      "id": "dbdd92d8-18a2-4a80-bdd1-447b0ca9a68b",
+      "name": "Webhook",
+      "webhookId": "41f77534-ab99-407f-a7b5-e22810688592"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"call_inbound\": {\n    \"override_agent_id\": \"agent_a907de3f523866479fbc085d15\",\n    \"dynamic_variable\": {\n      \"soonest_availability\": {{ JSON.stringify($json.text) }},\n      \"full_availability_1_week\": {{ JSON.stringify($('Transform full Avalibility').item.json.text) }}\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1264,
+        0
+      ],
+      "id": "57602595-9c7b-4dca-b830-2340c0320f04",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Transform full Avalibility",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Transform full Avalibility",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "soonest avalibility",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform full Avalibility": {
+      "main": [
+        [
+          {
+            "node": "soonest avalibility",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "soonest avalibility": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "522c0bc4-b7ce-4bca-8968-7a57fbf3429e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "85dee7620e3480e2f9037b4e26b407aadfe67efe04d56f7ad00459b505063403"
+  },
+  "nodeGroups": [],
+  "id": "KAKoDPJILZIxEq7N",
+  "tags": []
+}
